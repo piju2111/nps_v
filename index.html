@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NPS Walk-Forward Validator · Lab</title>
+    <style>
+        :root {
+            --bg-main: #0f172a;
+            --bg-card: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --border: #334155;
+            --q4-color: #10b981;
+            --q1-color: #ef4444;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        header {
+            margin-bottom: 30px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 20px;
+        }
+        h1 { margin: 0 0 10px 0; font-size: 28px; color: var(--accent); }
+        .input-box {
+            background-color: var(--bg-card);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            margin-bottom: 30px;
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        input[type="text"] {
+            flex: 1;
+            background: #0f172a;
+            border: 1px solid var(--border);
+            color: #fff;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background-color: var(--accent);
+            color: #0f172a;
+            border: none;
+            padding: 10px 20px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        button:hover { opacity: 0.9; }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-val { font-size: 32px; font-weight: bold; color: var(--accent); margin-top: 5px; }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        .panel {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .panel h2 { margin-top: 0; font-size: 18px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+        .row-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #334155;
+        }
+        .row-item:last-child { border-bottom: none; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        th, td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        th { background-color: #0f172a; color: var(--text-muted); }
+        .badge {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .badge-hit { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+        .badge-miss { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+        #statusMessage { margin-top: 10px; color: var(--accent); font-size: 14px; min-height: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>NPS Walk-Forward Validator · Lab</h1>
+        <p style="color: var(--text-muted); margin: 0;">Bayesian Probability Calibration Engine — Full Data History Build Mode</p>
+    </header>
+
+    <div class="input-box">
+        <label style="display: block; margin-bottom: 8px; font-weight: bold;">Google Sheets CSV Publish URL:</label>
+        <div class="input-group">
+            <input type="text" id="csvUrl" value="https://docs.google.com/spreadsheets/d/e/2PACX-1vQ0WRRoaKlcjrQ6xthFpq5r5n8XQpUSeUg7rsy0zXBUdx46HBacISyimAsIRbGPRYpsvpkUGwLCSJQm/pub?output=csv" placeholder="Paste published sheet CSV URL here...">
+            <button onclick="fetchAndValidate()">Run Evaluation</button>
+        </div>
+        <div id="statusMessage">Ready for validation run.</div>
+    </div>
+
+    <div id="dashboard" style="display: none;">
+        <!-- OVERALL PERFORMANCE SUMMARY -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div style="color: var(--text-muted);">Total Tested History</div>
+                <div class="stat-val" id="statTotalBars">-</div>
+            </div>
+            <div class="stat-card">
+                <div style="color: var(--text-muted);">Overall Hit Rate</div>
+                <div class="stat-val" id="statHitRate">-</div>
+            </div>
+            <div class="stat-card">
+                <div style="color: var(--text-muted);">Total Blast Hits</div>
+                <div class="stat-val" id="statTotalHits">-</div>
+            </div>
+            <div class="stat-card">
+                <div style="color: var(--text-muted);">Mean Time-to-Blast (T2B)</div>
+                <div class="stat-val" id="statMeanT2B">-</div>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <!-- QUARTILE BREAKDOWN -->
+            <div class="panel">
+                <h2>🎯 Does MasterP Work? — Quartile Breakdown</h2>
+                <div id="quartileContainer"></div>
+            </div>
+
+            <!-- REGIME PERFORMANCE -->
+            <div class="panel">
+                <h2>🏛️ Historical Performance by Volatility Regime</h2>
+                <div id="regimeContainer"></div>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <!-- FALSE CONFIDENCE PANEL -->
+            <div class="panel">
+                <h2 style="color: var(--q1-color);">❌ False Confidence (Top Quartile Q4, No Blast)</h2>
+                <div style="max-height: 300px; overflow-y: auto;">
+                    <table>
+                        <thead>
+                            <tr><th>Date</th><th>MasterP</th><th>Regime</th><th>Stage/Zone</th></tr>
+                        </thead>
+                        <tbody id="falseConfidenceTable"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- MISSED BLASTS PANEL -->
+            <div class="panel">
+                <h2 style="color: var(--accent);">⚠️ Blind Spot Blasts (Bottom Quartile Q1, But Blasted)</h2>
+                <div style="max-height: 300px; overflow-y: auto;">
+                    <table>
+                        <thead>
+                            <tr><th>Date</th><th>MasterP</th><th>Regime</th><th>T2B</th></tr>
+                        </thead>
+                        <tbody id="missedBlastsTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ── BAYESIAN FORMULAS & STRUCTURE SETUP ──
+const PRIOR = 0.50;
+const SHRINKAGE_M = 15; // Controls compression shrinkage dampening
+
+function initWFS(){
+    return { cs:{}, cz:{}, cr:{}, cb:{}, cw:{}, cm:{} };
+}
+
+// Feed standard tracker matrices with real samples
+function addToWFS(st, e){
+    const h = e.outcome.hit ? 1 : 0;
+    
+    if(!st.cs[e.stg]) st.cs[e.stg] = {n:0, hits:0};
+    st.cs[e.stg].n++; if(h) st.cs[e.stg].hits++;
+    
+    if(!st.cz[e.zn]) st.cz[e.zn] = {n:0, hits:0};
+    st.cz[e.zn].n++; if(h) st.cz[e.zn].hits++;
+    
+    if(!st.cr[e.rrc]) st.cr[e.rrc] = {n:0, hits:0};
+    st.cr[e.rrc].n++; if(h) st.cr[e.rrc].hits++;
+    
+    if(!st.cb[e.bfq]) st.cb[e.bfq] = {n:0, hits:0};
+    st.cb[e.bfq].n++; if(h) st.cb[e.bfq].hits++;
+    
+    if(!st.cw[e.wd]) st.cw[e.wd] = {n:0, hits:0};
+    st.cw[e.wd].n++; if(h) st.cw[e.wd].hits++;
+    
+    if(!st.cm[e.wm]) st.cm[e.wm] = {n:0, hits:0};
+    st.cm[e.wm].n++; if(h) st.cm[e.wm].hits++;
+}
+
+// Calculates single Bayesian component score with shrinkage
+function calcBayesP(b){
+    if(!b || b.n === 0) return PRIOR;
+    const lambda = b.n / (b.n + SHRINKAGE_M);
+    const rawRate = b.hits / b.n;
+    return (lambda * rawRate) + ((1 - lambda) * PRIOR);
+}
+
+// 6-Pillar Master Blended Engine using updated Equal-Weight Funnel Math
+function PE_WF(stg, zn, rs, rrc, wd, bfq, wm, st){
+    const pStg = calcBayesP(st.cs[stg]);
+    const pZn  = calcBayesP(st.cz[zn]);
+    const pRrc = calcBayesP(st.cr[rrc]);
+    const pBfq = calcBayesP(st.cb[bfq]);
+    const pWd  = calcBayesP(st.cw[wd]);
+    const pWm  = calcBayesP(st.cm[wm]);
+    
+    // Core Funnel Blends: Balanced execution to avoid channel granularity dilution
+    const f1 = (pStg + pZn) / 2;
+    const f2 = (pRrc + pBfq) / 2;
+    const f3 = (pWd + pWm) / 2;
+    
+    const masterP = ((f1 + f2 + f3) / 3) * 100;
+    
+    return {
+        masterP: parseFloat(masterP.toFixed(2)),
+        totalN: (st.cs[stg]?.n || 0)
+    };
+}
+
+// ── TWO-PASS COMPLETE DATA VALIDATION LOOP ──
+function runWF(log) {
+    const st = initWFS();
+    const res = [];
+    
+    // Pass 1: Seed all available entries completely into historical matrix states
+    for(let i = 0; i < log.length; i++) {
+        addToWFS(st, log[i]);
+    }
+    
+    // Pass 2: Score every single log entry using the fully populated matrices
+    for(let i = 0; i < log.length; i++) {
+        const e = log[i];
+        const p = PE_WF(e.stg, e.zn, e.rs, e.rrc, e.wd, e.bfq, e.wm, st);
+        
+        res.push({
+            date: e.date,
+            masterP: p.masterP,
+            totalN: p.totalN,
+            regime: e.rs,
+            stage: e.stg,
+            zone: e.zn,
+            rrc: e.rrc,
+            bfq: e.bfq,
+            hit: e.outcome.hit,
+            blastDay: e.outcome.blastDay
+        });
+    }
+    return res;
+}
+
+// ── DATA ACQUISITION & PROCESSING PIPELINE ──
+async function fetchAndValidate() {
+    const url = document.getElementById('csvUrl').value.trim();
+    const msg = document.getElementById('statusMessage');
+    if(!url) { msg.innerText = "Error: Input URL cannot be blank."; return; }
+    
+    msg.innerText = "Downloading matrix logs from Google Sheets...";
+    try {
+        const res = await fetch(url);
+        if(!res.ok) throw new Error("HTTP error connecting to sheet source.");
+        const text = await res.text();
+        
+        msg.innerText = "Parsing historical CSV blocks...";
+        const rows = parseCSV(text);
+        if(rows.length < 50) throw new Error("Insufficient history found inside tracking file.");
+        
+        msg.innerText = "Processing Outcome Logs via Matrix Loops...";
+        const log = buildOutcomeLog(rows);
+        
+        msg.innerText = "Running Complete-Pool Bayesian Evaluation...";
+        const finalWF = runWF(log);
+        
+        msg.innerText = "Rendering Metrics Engine...";
+        renderDashboard(finalWF);
+        msg.innerText = "Validation completed successfully.";
+    } catch(err) {
+        msg.innerText = "Failure Triggered: " + err.message;
+        console.error(err);
+    }
+}
+
+function parseCSV(text) {
+    const lines = text.split(/\r?\n/);
+    return lines.map(line => {
+        let result = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+            let char = line[i];
+            if (char === '"') { inQuotes = !inQuotes; }
+            else if (char === ',' && !inQuotes) { result.push(current.trim()); current = ''; }
+            else { current += char; }
+        }
+        result.push(current.trim());
+        return result;
+    }).filter(r => r.length > 1 && r[0] !== '');
+}
+
+function buildOutcomeLog(rows) {
+    const log = [];
+    const headers = rows[0].map(h => h.toLowerCase());
+    
+    const idxDate = headers.indexOf('date');
+    const idxStage = headers.indexOf('stage') !== -1 ? headers.indexOf('stage') : headers.indexOf('s');
+    const idxZone = headers.indexOf('zone') !== -1 ? headers.indexOf('zone') : headers.indexOf('z');
+    const idxRegime = headers.indexOf('regime') !== -1 ? headers.indexOf('regime') : headers.indexOf('rs');
+    const idxRrc = headers.indexOf('rrc');
+    const idxBfq = headers.indexOf('bfq');
+    const idxWd = headers.indexOf('weekday') !== -1 ? headers.indexOf('weekday') : headers.indexOf('wd');
+    const idxWm = headers.indexOf('wom') !== -1 ? headers.indexOf('wom') : headers.indexOf('wm');
+    
+    // Look ahead 10 elements to search for multi-bar structural expansion hits
+    for(let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if(!row[idxDate]) continue;
+        
+        let hitFound = false;
+        let blastDay = null;
+        
+        for(let look = 0; look < 10; look++) {
+            if(i + look >= rows.length) break;
+            const futureRow = rows[i + look];
+            // Checks standard data outputs for custom tracking column labels
+            const expansionVal = futureRow[headers.indexOf('expansionhit')] || futureRow[headers.indexOf('hit')] || "0";
+            if(expansionVal === "1" || expansionVal.toLowerCase() === "true" || expansionVal.toLowerCase() === "hit") {
+                hitFound = true;
+                blastDay = look + 1;
+                break;
+            }
+        }
+        
+        log.push({
+            date: row[idxDate],
+            stg: row[idxStage] || "S1",
+            zn: row[idxZone] || "Middle",
+            rs: row[idxRegime] || "Neutral",
+            rrc: row[idxRrc] || "R0",
+            bfq: row[idxBfq] || "B0",
+            wd: row[idxWd] || "Mon",
+            wm: row[idxWm] || "W1",
+            outcome: { hit: hitFound, blastDay: blastDay }
+        });
+    }
+    return log;
+}
+
+// ── VISUAL RENDERING DASHBOARD MECHANICS ──
+function renderDashboard(data) {
+    document.getElementById('dashboard').style.display = 'block';
+    
+    // Process Global Parameters
+    const totalBars = data.length;
+    const totalHits = data.filter(d => d.hit).length;
+    const globalHitRate = ((totalHits / totalBars) * 100).toFixed(1);
+    
+    let totalT2B = 0;
+    let hitCountForT2B = 0;
+    data.forEach(d => {
+        if(d.hit && d.blastDay) { totalT2B += d.blastDay; hitCountForT2B++; }
+    });
+    const meanT2B = hitCountForT2B > 0 ? (totalT2B / hitCountForT2B).toFixed(1) : '-';
+    
+    document.getElementById('statTotalBars').innerText = totalBars;
+    document.getElementById('statHitRate').innerText = globalHitRate + "%";
+    document.getElementById('statTotalHits').innerText = totalHits;
+    document.getElementById('statMeanT2B').innerText = meanT2B + "d";
+
+    // Quartile Analysis Split Points
+    const sorted = [...data].sort((a,b) => a.masterP - b.masterP);
+    const q1Limit = sorted[Math.floor(totalBars * 0.25)]?.masterP || 45;
+    const q2Limit = sorted[Math.floor(totalBars * 0.50)]?.masterP || 50;
+    const q3Limit = sorted[Math.floor(totalBars * 0.75)]?.masterP || 55;
+
+    const quartiles = [
+        { name: 'Q4 · High Conviction', filter: d => d.masterP >= q3Limit, label: `MasterP ≥ ${q3Limit}` },
+        { name: 'Q3 · Above Average', filter: d => d.masterP >= q2Limit && d.masterP < q3Limit, label: `MasterP ${q2Limit}–${q3Limit}` },
+        { name: 'Q2 · Below Average', filter: d => d.masterP >= q1Limit && d.masterP < q2Limit, label: `MasterP ${q1Limit}–${q2Limit}` },
+        { name: 'Q1 · Low Conviction', filter: d => d.masterP < q1Limit, label: `MasterP < ${q1Limit}` }
+    ];
+
+    let qHtml = "";
+    quartiles.forEach(q => {
+        const qItems = data.filter(q.filter);
+        const qN = qItems.length;
+        const qHits = qItems.filter(d => d.hit).length;
+        const qRate = qN > 0 ? ((qHits / qN) * 100).toFixed(0) : 0;
+        let qT2BTotal = 0, qT2BCount = 0;
+        qItems.forEach(d => { if(d.hit && d.blastDay) { qT2BTotal += d.blastDay; qT2BCount++; } });
+        const qT2B = qT2BCount > 0 ? (qT2BTotal / qT2BCount).toFixed(1) + "d" : "-";
+        
+        qHtml += `<div class="row-item">
+            <div><strong>${q.name}</strong><br><small style="color:var(--text-muted);">${q.label}</small></div>
+            <div style="text-align:right;">
+                <span class="badge ${qRate >= 60 ? 'badge-hit' : 'badge-miss'}" style="font-size:16px;">${qRate}%</span><br>
+                <small style="color:var(--text-muted);">n=${qN} hits=${qHits} T2B=${qT2B}</small>
+            </div>
+        </div>`;
+    });
+    document.getElementById('quartileContainer').innerHTML = qHtml;
+
+    // Regime Matrix Grouping Calculations
+    const regimes = [...new Set(data.map(d => d.regime))];
+    let rHtml = "";
+    regimes.forEach(r => {
+        const rItems = data.filter(d => d.regime === r);
+        const rN = rItems.length;
+        const rHits = rItems.filter(d => d.hit).length;
+        const rRate = rN > 0 ? ((rHits / rN) * 100).toFixed(0) : 0;
+        let rT2BTotal = 0, rT2BCount = 0;
+        rItems.forEach(d => { if(d.hit && d.blastDay) { rT2BTotal += d.blastDay; rT2BCount++; } });
+        const rT2B = rT2BCount > 0 ? (rT2BTotal / rT2BCount).toFixed(1) + "d" : "-";
+
+        rHtml += `<div class="row-item">
+            <div><strong>${r}</strong></div>
+            <div style="text-align:right;">
+                <span class="badge badge-hit">${rRate}%</span>
+                <span style="color:var(--text-muted); margin-left:10px; font-size:12px;">n=${rN} T2B: ${rT2B}</span>
+            </div>
+        </div>`;
+    });
+    document.getElementById('regimeContainer').innerHTML = rHtml;
+
+    // False Confidence Analysis Tables (Q4 scores that missed entirely)
+    const falseConf = data.filter(d => d.masterP >= q3Limit && !d.hit).slice(0, 20);
+    let fcHtml = "";
+    falseConf.forEach(f => {
+        fcHtml += `<tr><td>${f.date}</td><td><strong>${f.masterP}%</strong></td><td>${f.regime}</td><td>${f.stage}/${f.zone}</td></tr>`;
+    });
+    document.getElementById('falseConfidenceTable').innerHTML = fcHtml || "<tr><td colspan='4'>Zero signals matching parameters.</td></tr>";
+
+    // Missed Expansion Signals (Q1 scores that printed large unexpected blast moves)
+    const missed = data.filter(d => d.masterP < q1Limit && d.hit).slice(0, 20);
+    let mHtml = "";
+    missed.forEach(m => {
+        mHtml += `<tr><td>${m.date}</td><td style="color:var(--q1-color); font-weight:bold;">${m.masterP}%</td><td>${m.regime}</td><td><strong>${m.blastDay}d</strong></td></tr>`;
+    });
+    document.getElementById('missedBlastsTable').innerHTML = mHtml || "<tr><td colspan='4'>Zero signals matching parameters.</td></tr>";
+}
+</script>
+
+</body>
+</html>
+
